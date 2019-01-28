@@ -1,0 +1,602 @@
+package SQL_PPT;
+
+import java.io.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+
+import org.apache.poi.*;
+import org.apache.poi.hslf.record.TextHeaderAtom;
+import org.apache.poi.xslf.usermodel.*;
+import org.apache.poi.xssf.usermodel.*;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.charts.AxisTickMark;
+import org.apache.poi.ss.util.*;
+import org.apache.poi.util.*;
+import org.apache.poi.openxml4j.opc.*;
+import org.apache.poi.sl.*;
+import org.apache.poi.sl.usermodel.TableCell.BorderEdge;
+import org.apache.poi.sl.usermodel.TextBox;
+import org.apache.poi.sl.usermodel.TextRun;
+
+import static org.apache.poi.POIXMLTypeLoader.DEFAULT_XML_OPTIONS;
+
+import org.apache.xmlbeans.*;
+
+import org.openxmlformats.schemas.drawingml.x2006.chart.*;
+import org.openxmlformats.schemas.drawingml.x2006.main.*;
+import org.openxmlformats.schemas.presentationml.x2006.main.*;
+import org.testng.annotations.Test;
+
+import javax.xml.namespace.QName;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
+import java.util.regex.Pattern;
+
+import java.awt.geom.Rectangle2D;
+import java.awt.Rectangle;
+
+public class EE_Slide_1_ColumnChart {
+
+ @Test
+ public EE_Slide_1_ColumnChart() throws Exception {
+
+//READING PPT TEMPLATE________________________________________________________________________________________________________
+	 
+//READ AN EXISTING PPTX TEMPLATE (ABC)	 
+XMLSlideShow slideShow = new XMLSlideShow(new FileInputStream("C:\\Users\\komalap\\eclipse-workspace\\PE_Deck_Automation_scripts\\Slide_Template.pptm"));
+
+//READ SLIDE 
+XSLFSlide slide = slideShow.getSlides().get(0);
+
+//IF CREATING NEW PPT AND NEW SLIDE
+// XMLSlideShow slideShow = new XMLSlideShow();
+// XSLFSlide slide = slideShow.createSlide();
+
+ 
+//ADDING DATA_______________________________________________________________________________________________________________
+ 
+//ADDING HEADER TEXT
+ 
+XSLFTextBox shape = slide.createTextBox();
+shape.setAnchor(new Rectangle(20, 10, 300, 50));
+//(50-->right,50-->down,50-->width, 50-->length)
+XSLFTextParagraph p1 = shape.addNewTextParagraph();
+p1.setIndentLevel(0);
+XSLFTextRun r1 = p1.addNewTextRun();
+r1.setText("Engagement Profile");
+r1.setFontColor(java.awt.Color.white);
+r1.setFontSize((double) 18);
+boolean bold = true;
+r1.setBold(bold);
+r1.setFontFamily("Arial (headings)");
+
+//ADDING SUBTITLE
+
+XSLFTextBox shape2 = slide.createTextBox();
+shape2.setAnchor(new Rectangle(20, 70, 300, 50));
+//(50-->right,50-->down,50-->width, 50-->length)
+XSLFTextParagraph p2 = shape2.addNewTextParagraph();
+p2.setIndentLevel(0);
+XSLFTextRun r2 = p2.addNewTextRun();
+r2.setText("Overall Engagement");
+r2.setFontColor(java.awt.Color.black);
+r2.setFontSize((double) 10);
+boolean italic = true;
+r2.setItalic(italic);
+r2.setFontFamily("Arial (Body)");
+
+//ADDING FOOTER
+
+XSLFTextBox shape3 = slide.createTextBox();
+shape3.setAnchor(new Rectangle(308, 352, 300, 50));
+//(50-->right,50-->down,50-->width, 50-->length)
+XSLFTextParagraph p3 = shape3.addNewTextParagraph();
+p3.setIndentLevel(0);
+XSLFTextRun r3 = p3.addNewTextRun();
+r3.setText("Source: Advisory Board Survey Solutions’ employee engagement database, 2016.");
+r3.setFontColor(java.awt.Color.black);
+r3.setFontSize((double) 5);
+r3.setFontFamily("Arial (Body)");
+
+
+
+ //BAR CHART
+ MyXSLFChartShape myXSLFChartShape = createXSLFChart(slide);
+ myXSLFChartShape.setAnchor(new Rectangle(70,120,350,220));
+ drawBarChart(myXSLFChartShape);
+
+ 
+ 
+ 
+ //File to be executed here
+ FileOutputStream out = new FileOutputStream("C:\\Users\\komalap\\eclipse-workspace\\PE_Deck_Automation_scripts\\Slide_Template_Slide1.pptm");
+ slideShow.write(out);
+ out.close();
+     }
+
+
+
+//______________________________________________________METHODS____________________________________________________________________________________
+			
+ //Creating a MyXSLFChartShape as slide shape  
+ public MyXSLFChartShape createXSLFChart(XSLFSlide slide) throws Exception {
+
+  OPCPackage oPCPackage = slide.getSlideShow().getPackage();
+  int chartCount = oPCPackage.getPartsByName(Pattern.compile("/ppt/charts/chart.*")).size() + 1;
+  PackagePartName partName = PackagingURIHelper.createPartName("/ppt/charts/chart" + chartCount + ".xml");
+  PackagePart part = oPCPackage.createPart(partName, "application/vnd.openxmlformats-officedocument.drawingml.chart+xml");
+
+  MyXSLFChart myXSLFChart = new MyXSLFChart(part);
+  MyXSLFChartShape myXSLFChartShape = new MyXSLFChartShape(slide, myXSLFChart);
+
+  return myXSLFChartShape;
+ }
+ 
+//BAR CHART
+public void drawBarChart(MyXSLFChartShape myXSLFChartShape) throws SQLException, ClassNotFoundException {
+	 
+	//Connecting to databse
+		String url ="jdbc:jtds:sqlserver://servername:hostname/Z_2013_PEI_Mission_Survey_Data;Integrated Security=True";
+		Class.forName("net.sourceforge.jtds.jdbc.Driver");
+		Connection conn = DriverManager.getConnection(url);
+		Statement sta = conn.createStatement();
+		
+		//Executing SQL query
+		String Sql = ("------ EEI QA Analysis No. 2\r\n" + 
+				"------ Designed to provide the Count, Mean, and percents by Engagement Category for a specific SURVEY\r\n" + 
+				"------ Results are at system level\r\n" + 
+				"\r\n" + 
+				"USE Z_2012_EEI_Mission_Survey_Data\r\n" + 
+				"\r\n" + 
+				"-- Drop all tables if they exist\r\n" + 
+				"\r\n" + 
+				
+				"\r\n" + 
+				"-- Create required tables\r\n" + 
+				"\r\n" + 
+				"create table #respondents (RESPONDENT_ID varchar(50))\r\n" + 
+				"create table #analysis_2 (BREAKDOWN_CATEGORY varchar(500), COUNT int, MEAN float, COUNT_DISENGAGED float, \r\n" + 
+				"	COUNT_AMBIVALENT float, COUNT_CONTENT float, COUNT_ENGAGED float, PERC_DISENGAGED float, \r\n" + 
+				"	PERC_AMBIVALENT float, PERC_CONTENT float, PERC_ENGAGED float)\r\n" + 
+				"create table #count (BREAKDOWN_CATEGORY varchar(500), COUNT float)\r\n" + 
+				"create table #mean (BREAKDOWN_CATEGORY varchar(500), MEAN float)\r\n" + 
+				"create table #disengaged (BREAKDOWN_CATEGORY varchar(500), COUNT float)\r\n" + 
+				"create table #ambivalent (BREAKDOWN_CATEGORY varchar(500), COUNT float)\r\n" + 
+				"create table #content (BREAKDOWN_CATEGORY varchar(500), COUNT float)\r\n" + 
+				"create table #engaged (BREAKDOWN_CATEGORY varchar(500), COUNT float)\r\n" + 
+				"\r\n" + 
+				"-- Create subset of respondents based on desired filters\r\n" + 
+				"\r\n" + 
+				"insert into #respondents\r\n" + 
+				"select RESPONDENT_ID\r\n" + 
+				"from ABC_RespondentDemographics\r\n" + 
+				"where ods_survey_id = 887257\r\n" + 
+				"and ABC_ENGAGEMENT_CATEGORY is not null\r\n" + 
+				"\r\n" + 
+				"--------- DON'T CHANGE ANYTHING BELOW THIS LINE ----------\r\n" + 
+				"\r\n" + 
+				"------- Analysis 1: Count, Mean Score, % SA/A, % SA by Question\r\n" + 
+				"\r\n" + 
+				"insert into #analysis_2\r\n" + 
+				"select SYSTEM_NAME, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL\r\n" + 
+				"from ABC_RespondentDemographics\r\n" + 
+				"where RESPONDENT_ID in (select RESPONDENT_ID from #respondents)\r\n" + 
+				"group by SYSTEM_NAME\r\n" + 
+				"\r\n" + 
+				"-- Compute each metric by BREAKDOWN_CATEGORY separately\r\n" + 
+				"\r\n" + 
+				"insert into #count\r\n" + 
+				"select a.SYSTEM_NAME, count(*)\r\n" + 
+				"from ABC_RespondentDemographics a, #respondents b\r\n" + 
+				"where a.RESPONDENT_ID = b.RESPONDENT_ID\r\n" + 
+				"group by a.SYSTEM_NAME\r\n" + 
+				"\r\n" + 
+				"insert into #mean\r\n" + 
+				"select a.SYSTEM_NAME, avg(ABC_ENGAGEMENT_INDEX_SCORE) mean\r\n" + 
+				"from ABC_RespondentDemographics a, #respondents b\r\n" + 
+				"where a.RESPONDENT_ID = b.RESPONDENT_ID\r\n" + 
+				"group by a.SYSTEM_NAME\r\n" + 
+				"\r\n" + 
+				"insert into #disengaged\r\n" + 
+				"select a.SYSTEM_NAME, count(*) count\r\n" + 
+				"from ABC_RespondentDemographics a, #respondents b\r\n" + 
+				"where a.RESPONDENT_ID = b.RESPONDENT_ID\r\n" + 
+				"and ABC_ENGAGEMENT_CATEGORY = 'disengaged'\r\n" + 
+				"group by a.SYSTEM_NAME\r\n" + 
+				"\r\n" + 
+				"insert into #ambivalent\r\n" + 
+				"select a.SYSTEM_NAME, count(*) count\r\n" + 
+				"from ABC_RespondentDemographics a, #respondents b\r\n" + 
+				"where a.RESPONDENT_ID = b.RESPONDENT_ID\r\n" + 
+				"and ABC_ENGAGEMENT_CATEGORY = 'ambivalent'\r\n" + 
+				"group by a.SYSTEM_NAME\r\n" + 
+				"\r\n" + 
+				"insert into #content\r\n" + 
+				"select a.SYSTEM_NAME, count(*) count\r\n" + 
+				"from ABC_RespondentDemographics a, #respondents b\r\n" + 
+				"where a.RESPONDENT_ID = b.RESPONDENT_ID\r\n" + 
+				"and ABC_ENGAGEMENT_CATEGORY = 'content'\r\n" + 
+				"group by a.SYSTEM_NAME\r\n" + 
+				"\r\n" + 
+				"insert into #engaged\r\n" + 
+				"select a.SYSTEM_NAME, count(*) count\r\n" + 
+				"from ABC_RespondentDemographics a, #respondents b\r\n" + 
+				"where a.RESPONDENT_ID = b.RESPONDENT_ID\r\n" + 
+				"and ABC_ENGAGEMENT_CATEGORY = 'engaged'\r\n" + 
+				"group by a.SYSTEM_NAME\r\n" + 
+				"\r\n" + 
+				"-- Now update the main table with results\r\n" + 
+				"\r\n" + 
+				"update a\r\n" + 
+				"set a.count = b.count\r\n" + 
+				"from #analysis_2 a, #count b\r\n" + 
+				"where a.BREAKDOWN_CATEGORY = b.BREAKDOWN_CATEGORY\r\n" + 
+				"\r\n" + 
+				"update a\r\n" + 
+				"set a.MEAN = b.MEAN\r\n" + 
+				"from #analysis_2 a, #mean b\r\n" + 
+				"where a.BREAKDOWN_CATEGORY = b.BREAKDOWN_CATEGORY\r\n" + 
+				"\r\n" + 
+				"update a\r\n" + 
+				"set a.COUNT_DISENGAGED = b.COUNT\r\n" + 
+				"from #analysis_2 a, #disengaged b\r\n" + 
+				"where a.BREAKDOWN_CATEGORY = b.BREAKDOWN_CATEGORY\r\n" + 
+				"\r\n" + 
+				"update a\r\n" + 
+				"set a.COUNT_AMBIVALENT = b.COUNT\r\n" + 
+				"from #analysis_2 a, #ambivalent b\r\n" + 
+				"where a.BREAKDOWN_CATEGORY = b.BREAKDOWN_CATEGORY\r\n" + 
+				"\r\n" + 
+				"update a\r\n" + 
+				"set a.COUNT_CONTENT = b.COUNT\r\n" + 
+				"from #analysis_2 a, #content b\r\n" + 
+				"where a.BREAKDOWN_CATEGORY = b.BREAKDOWN_CATEGORY\r\n" + 
+				"\r\n" + 
+				"update a\r\n" + 
+				"set a.COUNT_ENGAGED = b.COUNT\r\n" + 
+				"from #analysis_2 a, #engaged b\r\n" + 
+				"where a.BREAKDOWN_CATEGORY = b.BREAKDOWN_CATEGORY\r\n" + 
+				"\r\n" + 
+				"update #analysis_2\r\n" + 
+				"set PERC_DISENGAGED = COUNT_DISENGAGED / COUNT \r\n" + 
+				"\r\n" + 
+				"update #analysis_2\r\n" + 
+				"set PERC_AMBIVALENT = COUNT_AMBIVALENT / COUNT\r\n" + 
+				"\r\n" + 
+				"update #analysis_2\r\n" + 
+				"set PERC_CONTENT = COUNT_CONTENT / COUNT\r\n" + 
+				"\r\n" + 
+				"update #analysis_2\r\n" + 
+				"set PERC_ENGAGED = COUNT_ENGAGED / COUNT\r\n" + 
+				"\r\n" + 
+				"-- Final Results\r\n" + 
+				"\r\n" + 
+				"select BREAKDOWN_CATEGORY, COUNT, MEAN, PERC_DISENGAGED, PERC_AMBIVALENT, PERC_CONTENT, PERC_ENGAGED\r\n" + 
+				"from #analysis_2 \r\n" + 
+				"order by BREAKDOWN_CATEGORY\r\n" 
+				);
+		
+		//Execute the above SQL query and get results
+		ResultSet rs2 = sta.executeQuery(Sql);
+		while (rs2.next()) {
+			
+			float PERC_ENGAGED = rs2.getFloat("PERC_ENGAGED");
+			//double PERC_ENGAGED = Math.round((a1*100)* 10) / 10.0;
+						
+			float PERC_CONTENT = rs2.getFloat("PERC_CONTENT");
+			//double PERC_CONTENT = Math.round((b1*100)* 10) / 10.0;
+			
+			float PERC_AMBIVALENT = rs2.getFloat("PERC_AMBIVALENT");
+			//double PERC_AMBIVALENT = Math.round((c1*100)* 10) / 10.0;
+			
+			float PERC_DISENGAGED = rs2.getFloat("PERC_DISENGAGED");
+			//double PERC_DISENGAGED = Math.round((d1*100)* 10) / 10.0;
+			
+			
+ XSSFWorkbook workbook = myXSLFChartShape.getMyXSLFChart().getXSLFXSSFWorkbook().getXSSFWorkbook();
+ XSSFSheet sheet = workbook.getSheetAt(0);
+ sheet.createRow(0);
+ sheet.createRow(1);
+ 
+//Setting data in PIE chart from SQL:
+ 
+//ROW HEADERS:
+ sheet.getRow(1).createCell(0).setCellValue("Org");
+ //for (int c = 1; c < 4; c++) { sheet.getRow(0).createCell(c).setCellValue("Category" + c); }
+ 
+ //COLUMN HEADER:
+// for (int r = 1; r < 5; r++) {sheet.createRow(r).createCell(0).setCellValue("Data_PK" + r); }
+ 
+//DATA FROM SQL
+  // for (int c = 1; c <2; c++) { 
+   //sheet.getRow(r).createCell(c).setCellValue((10+r)*c);
+ 
+ 
+  //SETTING HEADER TEXT
+   sheet.getRow(0).createCell(1).setCellValue("Engaged");
+   sheet.getRow(0).createCell(2).setCellValue("Content");
+   sheet.getRow(0).createCell(3).setCellValue("Ambivalent");
+   sheet.getRow(0).createCell(4).setCellValue("Disengaged");
+   
+ //FORMATTING FOR % SYMBOL
+   CellStyle style1 = workbook.createCellStyle();
+   style1.setDataFormat(workbook.createDataFormat().getFormat("0.0%"));
+  
+  //WRITING DATA IN TO PPT_EXCEL
+   sheet.getRow(1).createCell(1).setCellValue(PERC_ENGAGED);
+   sheet.getRow(1).getCell(1).setCellStyle(style1);
+  
+   sheet.getRow(1).createCell(2).setCellValue(PERC_CONTENT);
+   sheet.getRow(1).getCell(2).setCellStyle(style1);
+   
+   sheet.getRow(1).createCell(3).setCellValue(PERC_AMBIVALENT);
+   sheet.getRow(1).getCell(3).setCellStyle(style1);
+   
+   sheet.getRow(1).createCell(4).setCellValue(PERC_DISENGAGED);
+   sheet.getRow(1).getCell(4).setCellStyle(style1);
+		}
+ 
+
+ CTChartSpace chartSpace = myXSLFChartShape.getMyXSLFChart().getChartSpace();
+ CTChart cTChart = chartSpace.addNewChart();
+ CTPlotArea cTPlotArea = cTChart.addNewPlotArea();
+ CTBarChart cTBarChart = cTPlotArea.addNewBarChart();
+ 
+ //SET true IF YOU WANT DIFFERENT COLORS. IF NOT, SET false
+ cTBarChart.addNewVaryColors().setVal(false);
+ 
+ //Set to a BAR chart (STBarDir.BAR) or COLUMN chart (STBarDir.COL)
+ cTBarChart.addNewBarDir().setVal(STBarDir.COL);
+
+ for (int r = 1; r < 2; r++) {
+  CTBarSer cTBarSer = cTBarChart.addNewSer();
+  CTStrRef cTStrRef = cTBarSer.addNewTx().addNewStrRef();
+  cTStrRef.setF("Sheet0!$A$" + (r+1));
+  cTStrRef.addNewStrCache().addNewPtCount().setVal(1);
+  CTStrVal cTStrVal = cTStrRef.getStrCache().addNewPt();
+  cTStrVal.setIdx(1);
+//  cTStrVal.setV("Data_PK" + r);
+  
+//Color scheme of the bars -- 0=light, 1=medium, 2=dark and so on
+  cTBarSer.addNewIdx().setVal(r-1);
+
+  CTAxDataSource cttAxDataSource = cTBarSer.addNewCat();
+  cTStrRef = cttAxDataSource.addNewStrRef();
+  cTStrRef.setF("Sheet0!$B$1:$E$1");   
+  cTStrRef.addNewStrCache().addNewPtCount().setVal(3);
+ 
+
+  CTNumDataSource ctNumDataSource = cTBarSer.addNewVal();
+  CTNumRef cTNumRef = ctNumDataSource.addNewNumRef();
+  cTNumRef.setF("Sheet0!$B$" + (r+1) + ":$E$" + (r+1));
+  cTNumRef.addNewNumCache().addNewPtCount().setVal(3);
+ 
+ } 
+
+ //LABELS CONDITIONS::
+ CTDLbls dLbls = cTBarChart.addNewDLbls();
+ dLbls.addNewShowBubbleSize().setVal(false);
+ dLbls.addNewShowLegendKey().setVal(false);
+ dLbls.addNewShowCatName().setVal(false);
+ dLbls.addNewShowSerName().setVal(false);
+ dLbls.addNewShowPercent().setVal(false);
+ dLbls.addNewShowVal().setVal(true);
+ //dLbls.addNewShowLeaderLines().setVal(true);
+
+ 
+ //telling the BarChart that it has axes and giving them Ids
+ cTBarChart.addNewAxId().setVal(123456);
+ cTBarChart.addNewAxId().setVal(123457);
+
+ //X AXIS_______________________________________________________________
+ 
+ CTCatAx cTCatAx = cTPlotArea.addNewCatAx(); 
+ 
+ cTCatAx.addNewAxId().setVal(123456); //id of the cat axis
+ 
+ CTScaling cTScaling = cTCatAx.addNewScaling();
+ 
+ //ORDERING DATA BASED ON ITS VALUE - Minimum to max or max to min
+ //cTScaling.addNewOrientation().setVal(STOrientation.MAX_MIN);
+ 
+ //MAKE THE X AXIS APPEAR OR DISAPPEAR (set true for disappear)
+ cTCatAx.addNewDelete().setVal(false);
+ 
+ //
+ cTCatAx.addNewAxPos().setVal(STAxPos.B);
+ 
+//id of the val axis
+ cTCatAx.addNewCrossAx().setVal(123457); 
+ 
+ //LABELS TO APPEAR - next to x axis or high or low
+ cTCatAx.addNewTickLblPos().setVal(STTickLblPos.LOW);
+ 
+//TICK MARKS ON X AXIS - IN/ OUT/ NONE
+ cTCatAx.addNewMajorTickMark().setVal(org.openxmlformats.schemas.drawingml.x2006.chart.STTickMark.NONE);
+ cTCatAx.addNewMinorTickMark().setVal(org.openxmlformats.schemas.drawingml.x2006.chart.STTickMark.NONE);
+
+ 
+ //Y AXIS_______________________________________________________________
+ 
+ CTValAx cTValAx = cTPlotArea.addNewValAx(); 
+ cTValAx.addNewAxId().setVal(123457); //id of the val axis
+ cTScaling = cTValAx.addNewScaling();
+ cTScaling.addNewOrientation().setVal(STOrientation.MIN_MAX);
+ 
+ //MAKE THE Y AXIS APPEAR OR DISAPPEAR (set true for disappear)
+ cTValAx.addNewDelete().setVal(true);
+ 
+ cTValAx.addNewAxPos().setVal(STAxPos.L);
+ cTValAx.addNewCrossAx().setVal(123456); //id of the cat axis
+ 
+ //LABELS TO APPEAR - next to x axis or high or low
+ cTValAx.addNewTickLblPos().setVal(STTickLblPos.NEXT_TO);
+
+ //legend
+ CTLegend cTLegend = cTChart.addNewLegend();
+ cTLegend.addNewLegendPos().setVal(STLegendPos.B);
+ cTLegend.addNewOverlay().setVal(false);
+ 
+ 
+		}
+
+
+
+public static void main(String[] args) throws Exception {
+ Other_PK PPT_Creation_PK = new Other_PK();
+}
+
+//a class for providing a MyXSLFChartShape
+private class MyXSLFChartShape {
+ private CTGraphicalObjectFrame _graphicalObjectFrame;
+ private XSLFSlide slide;
+ private MyXSLFChart myXSLFChart;
+
+ MyXSLFChartShape(XSLFSlide slide, MyXSLFChart myXSLFChart) throws Exception {
+
+  String rId = "rId" + (slide.getRelationParts().size()+1);
+  slide.addRelation(rId, XSLFRelation.CHART, myXSLFChart);
+
+  long cNvPrId = 1;
+  String cNvPrName = "MyChart";
+  int cNvPrNameCount = 1;
+  for (CTGraphicalObjectFrame currGraphicalObjectFrame : slide.getXmlObject().getCSld().getSpTree().getGraphicFrameList()) {
+   if (currGraphicalObjectFrame.getNvGraphicFramePr() != null) {
+    if (currGraphicalObjectFrame.getNvGraphicFramePr().getCNvPr() != null) {
+     cNvPrId++;
+     if (currGraphicalObjectFrame.getNvGraphicFramePr().getCNvPr().getName().startsWith(cNvPrName)) {
+      cNvPrNameCount++;
+     }
+    }
+   }
+  }
+
+  CTGraphicalObjectFrame graphicalObjectFrame = slide.getXmlObject().getCSld().getSpTree().addNewGraphicFrame();
+  CTGraphicalObjectFrameNonVisual cTGraphicalObjectFrameNonVisual = graphicalObjectFrame.addNewNvGraphicFramePr();
+  cTGraphicalObjectFrameNonVisual.addNewCNvGraphicFramePr();
+  cTGraphicalObjectFrameNonVisual.addNewNvPr();
+
+  CTNonVisualDrawingProps cTNonVisualDrawingProps = cTGraphicalObjectFrameNonVisual.addNewCNvPr();
+  cTNonVisualDrawingProps.setId(cNvPrId);
+  cTNonVisualDrawingProps.setName("MyChart" + cNvPrNameCount);
+
+  CTGraphicalObject graphicalObject = graphicalObjectFrame.addNewGraphic();
+  CTGraphicalObjectData graphicalObjectData = CTGraphicalObjectData.Factory.parse(
+    "<c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" "
+   +"xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" "
+   +"r:id=\"" + rId + "\"/>"
+  );
+  graphicalObjectData.setUri("http://schemas.openxmlformats.org/drawingml/2006/chart");
+  graphicalObject.setGraphicData(graphicalObjectData);
+
+  _graphicalObjectFrame = graphicalObjectFrame;
+  this.slide = slide;
+  this.myXSLFChart = myXSLFChart;
+
+  this.setAnchor(new Rectangle());
+ }
+
+ private void setAnchor(Rectangle2D anchor) {
+  CTTransform2D xfrm = (_graphicalObjectFrame.getXfrm() != null) ? _graphicalObjectFrame.getXfrm() : _graphicalObjectFrame.addNewXfrm();
+  CTPoint2D off = xfrm.isSetOff() ? xfrm.getOff() : xfrm.addNewOff();
+  long x = Units.toEMU(anchor.getX());
+  long y = Units.toEMU(anchor.getY());
+  off.setX(x);
+  off.setY(y);
+  CTPositiveSize2D ext = xfrm.isSetExt() ? xfrm.getExt() : xfrm.addNewExt();
+  long cx = Units.toEMU(anchor.getWidth());
+  long cy = Units.toEMU(anchor.getHeight());
+  ext.setCx(cx);
+  ext.setCy(cy);
+ }
+
+ private MyXSLFChart getMyXSLFChart() {
+  return myXSLFChart;
+ }
+}
+
+//a wrapper class for the ChartSpaceDocument /ppt/charts/chart*.xml in the *.pptx ZIP archive  
+private class MyXSLFChart extends POIXMLDocumentPart {
+
+ private CTChartSpace chartSpace;
+ private MyXSLFXSSFWorkbook myXSLFXSSFWorkbook;
+
+ private MyXSLFChart(PackagePart part) throws Exception {
+  super(part);
+
+  OPCPackage oPCPackage = part.getPackage();
+  int chartCount = oPCPackage.getPartsByName(Pattern.compile("/ppt/embeddings/.*.xlsx")).size() + 1;
+  PackagePartName partName = PackagingURIHelper.createPartName("/ppt/embeddings/Microsoft_Excel_Worksheet" + chartCount + ".xlsx");
+  PackagePart xlsxpart = oPCPackage.createPart(partName, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
+  myXSLFXSSFWorkbook = new MyXSLFXSSFWorkbook(xlsxpart);
+
+  String rId = "rId" + (this.getRelationParts().size()+1);
+  XSLFXSSFRelation xSLFXSSFRelationPACKAGE = new XSLFXSSFRelation(
+   "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package");
+
+  this.addRelation(rId, xSLFXSSFRelationPACKAGE, myXSLFXSSFWorkbook);
+
+  chartSpace = ChartSpaceDocument.Factory.newInstance().addNewChartSpace();
+  CTExternalData cTExternalData = chartSpace.addNewExternalData();
+  cTExternalData.setId(rId);
+  //cTExternalData.addNewAutoUpdate().setVal(true);
+ }
+
+ private CTChartSpace getChartSpace() {
+  return chartSpace;
+ }
+
+ private MyXSLFXSSFWorkbook getXSLFXSSFWorkbook() {
+  return myXSLFXSSFWorkbook;
+ }
+
+ @Override
+ protected void commit() throws IOException {
+  XmlOptions xmlOptions = new XmlOptions(DEFAULT_XML_OPTIONS);
+  xmlOptions.setSaveSyntheticDocumentElement(new QName(CTChartSpace.type.getName().getNamespaceURI(), "chartSpace", "c"));
+  PackagePart part = getPackagePart();
+  OutputStream out = part.getOutputStream();
+  chartSpace.save(out, xmlOptions);
+  out.close();
+ }
+
+}
+
+//a wrapper class for the XSSFWorkbook /ppt/embeddings/Microsoft_Excel_Worksheet*.xlsx in the *.pptx ZIP archive  
+private class MyXSLFXSSFWorkbook extends POIXMLDocumentPart {
+
+ private XSSFWorkbook workbook;
+
+ private MyXSLFXSSFWorkbook(PackagePart part) throws Exception {
+  super(part);
+  workbook = new XSSFWorkbook();
+  XSSFSheet sheet = workbook.createSheet();
+ }
+
+ private XSSFWorkbook getXSSFWorkbook() {
+  return workbook;
+ }
+
+ @Override
+ protected void commit() throws IOException {
+  PackagePart part = getPackagePart();
+  OutputStream out = part.getOutputStream();
+  workbook.write(out);
+  workbook.close();
+  out.close();
+ }
+}
+
+//a class to note the relations
+private class XSLFXSSFRelation extends POIXMLRelation {
+ private XSLFXSSFRelation(String rel) {
+  super(null, rel, null);
+ }
+}
+} 
